@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Nodule Counter</title>
+    <style>
+        body { font-family: sans-serif; text-align: center; }
+        .container { margin-top: 50px; }
+        .result { margin-top: 20px; font-size: 1.2em; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Microscopy Nodule Counter (100x Magnification)</h1>
+        <form id="uploadForm" action="/upload" method="post" enctype="multipart/form-data">
+            <label for="imageUpload">Upload Image:</label><br><br>
+            <input type="file" id="imageUpload" name="image" accept="image/*" required><br><br>
+            <button type="submit">Calculate Nodule Count</button>
+        </form>
+        <div id="result" class="result"></div>
+    </div>
+
+    <script>
+        document.getElementById('uploadForm').onsubmit = async (event) => {
+            event.preventDefault();
+
+            const form = event.target;
+            const formData = new FormData(form);
+            const resultDiv = document.getElementById('result');
+
+            resultDiv.innerHTML = 'Counting nodules...';
+
+            try {
+                const response = await fetch('/upload', {
+                    method: 'POST',
+                    body: formData,
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const data = await response.json();
+                resultDiv.innerHTML = `<strong>Nodule count: ${data.nodule_count}</strong>`;
+
+            } catch (error) {
+                console.error('Error:', error);
+                resultDiv.innerHTML = `<span style="color: red;">Error: ${error.message}</span>`;
+            }
+        };
+    </script>
+</body>
+</html>
