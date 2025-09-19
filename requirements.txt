@@ -1,3 +1,5 @@
 gunicorn
 flask
-python "3.13.4"
+werkzeug
+opencv-python
+numpy
