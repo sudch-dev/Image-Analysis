@@ -2,27 +2,29 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Nodule Counter</title>
+  <title>Nodule / Pearlite / Carbide Analyzer</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
     body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 2rem; }
-    .card { border: 1px solid #ddd; border-radius: 8px; padding: 1rem; max-width: 800px; }
+    .card { border: 1px solid #ddd; border-radius: 8px; padding: 1rem; max-width: 980px; }
     label { display:block; margin-top: .5rem; font-weight: 600;}
-    input[type="number"], input[type="text"] { width: 160px; }
+    input[type="number"], select { width: 160px; }
     .row { display:flex; gap:1rem; flex-wrap: wrap; align-items: center; }
     .result { margin-top: 1rem; padding: .75rem; background: #fafafa; border: 1px dashed #ccc; }
     img { max-width: 100%; height: auto; display:block; margin-top: .5rem; }
     .muted { color:#666; font-size:.9rem; }
     button { padding: .6rem 1rem; cursor: pointer; }
+    hr { margin: 1rem 0; }
   </style>
 </head>
 <body>
-  <h1>Nodule Counter (CV)</h1>
+  <h1>Microstructure Analyzer</h1>
   <div class="card">
     <form id="form" enctype="multipart/form-data">
       <label>Micrograph image</label>
       <input type="file" name="image" accept="image/*" required />
 
+      <h3>Nodule detection</h3>
       <div class="row">
         <div>
           <label>Min area (px)</label>
@@ -51,24 +53,80 @@
         </div>
       </div>
 
-      <p class="muted">Tip: tune Min/Max area to your imaging scale; increase Max area if nodules are larger.</p>
+      <hr />
+      <h3>Pearlite estimation</h3>
+      <div class="row">
+        <div>
+          <label>Method</label>
+          <select name="pearl_method">
+            <option value="otsu" selected>Otsu</option>
+            <option value="adaptive">Adaptive</option>
+          </select>
+        </div>
+        <div>
+          <label>Block size (adaptive)</label>
+          <input type="number" name="pearl_block" value="31" min="3" step="2" />
+        </div>
+        <div>
+          <label>C (adaptive)</label>
+          <input type="number" name="pearl_C" value="5" />
+        </div>
+        <div>
+          <label>Open kernel</label>
+          <input type="number" name="pearl_open" value="3" min="1" />
+        </div>
+      </div>
+      <p class="muted">Pearlite is segmented as the darker matrix; graphite nodules are excluded from % calculation.</p>
 
-      <button type="submit">Process</button>
+      <hr />
+      <h3>Carbide estimation</h3>
+      <div class="row">
+        <div>
+          <label>Bright percentile</label>
+          <input type="number" name="carb_percentile" value="99.3" step="0.1" />
+        </div>
+        <div>
+          <label>Min area (px)</label>
+          <input type="number" name="carb_min_area" value="12" min="1" />
+        </div>
+        <div>
+          <label>Max area (px)</label>
+          <input type="number" name="carb_max_area" value="2000" min="10" />
+        </div>
+        <div>
+          <label>Min aspect ratio</label>
+          <input type="number" name="carb_min_ar" value="2.0" step="0.1" />
+        </div>
+        <div>
+          <label>Max solidity</label>
+          <input type="number" name="carb_max_sol" value="0.95" step="0.01" />
+        </div>
+      </div>
+      <p class="muted">Carbides are detected as very bright, thin/elongated or angular features within the metallic matrix.</p>
+
+      <button type="submit">Analyze</button>
     </form>
 
     <div id="output" class="result" style="display:none;"></div>
-    <img id="preview" style="display:none;" alt="Overlay preview" />
+    <div id="images" style="display:none;">
+      <h4>Overlays</h4>
+      <div class="muted">Nodules (green/blue), Pearlite (red tint), Carbides (white).</div>
+      <img id="img1" alt="Nodules overlay" />
+      <img id="img2" alt="Diagnostic overlay" />
+    </div>
   </div>
 
   <script>
     const form = document.getElementById('form');
     const output = document.getElementById('output');
-    const preview = document.getElementById('preview');
+    const images = document.getElementById('images');
+    const img1 = document.getElementById('img1');
+    const img2 = document.getElementById('img2');
 
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       output.style.display = 'none';
-      preview.style.display = 'none';
+      images.style.display = 'none';
       const data = new FormData(form);
 
       const res = await fetch('/upload', { method: 'POST', body: data });
@@ -80,17 +138,26 @@
         return;
       }
 
-      const { nodule_count, nodules_per_mm2, overlay_url } = json;
+      const {
+        nodule_count, nodules_per_mm2,
+        pearlite_percent, carbide_percent,
+        nodules_overlay_url, diagnostic_overlay_url
+      } = json;
+
       let html = `<strong>Nodule count:</strong> ${nodule_count}`;
       if (nodules_per_mm2 !== null && nodules_per_mm2 !== undefined) {
         html += `<br/><strong>Nodules/mm²:</strong> ${nodules_per_mm2}`;
       }
+      html += `<br/><strong>Pearlite %:</strong> ${pearlite_percent}`;
+      html += `<br/><strong>Carbide %:</strong> ${carbide_percent}`;
+
       output.innerHTML = html;
       output.style.display = 'block';
 
-      if (overlay_url) {
-        preview.src = overlay_url;
-        preview.style.display = 'block';
+      if (nodules_overlay_url || diagnostic_overlay_url) {
+        if (nodules_overlay_url) img1.src = nodules_overlay_url;
+        if (diagnostic_overlay_url) img2.src = diagnostic_overlay_url;
+        images.style.display = 'block';
       }
     });
   </script>
