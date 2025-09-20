@@ -1,54 +1,98 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <title>Nodule Counter</title>
-    <style>
-        body { font-family: sans-serif; text-align: center; }
-        .container { margin-top: 50px; }
-        .result { margin-top: 20px; font-size: 1.2em; }
-    </style>
+  <meta charset="utf-8" />
+  <title>Nodule Counter</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 2rem; }
+    .card { border: 1px solid #ddd; border-radius: 8px; padding: 1rem; max-width: 800px; }
+    label { display:block; margin-top: .5rem; font-weight: 600;}
+    input[type="number"], input[type="text"] { width: 160px; }
+    .row { display:flex; gap:1rem; flex-wrap: wrap; align-items: center; }
+    .result { margin-top: 1rem; padding: .75rem; background: #fafafa; border: 1px dashed #ccc; }
+    img { max-width: 100%; height: auto; display:block; margin-top: .5rem; }
+    .muted { color:#666; font-size:.9rem; }
+    button { padding: .6rem 1rem; cursor: pointer; }
+  </style>
 </head>
 <body>
-    <div class="container">
-        <h1>Microscopy Nodule Counter (100x Magnification)</h1>
-        <form id="uploadForm" action="/upload" method="post" enctype="multipart/form-data">
-            <label for="imageUpload">Upload Image:</label><br><br>
-            <input type="file" id="imageUpload" name="image" accept="image/*" required><br><br>
-            <button type="submit">Calculate Nodule Count</button>
-        </form>
-        <div id="result" class="result"></div>
-    </div>
+  <h1>Nodule Counter (CV)</h1>
+  <div class="card">
+    <form id="form" enctype="multipart/form-data">
+      <label>Micrograph image</label>
+      <input type="file" name="image" accept="image/*" required />
 
-    <script>
-        document.getElementById('uploadForm').onsubmit = async (event) => {
-            event.preventDefault();
+      <div class="row">
+        <div>
+          <label>Min area (px)</label>
+          <input type="number" name="min_area" value="50" min="1" />
+        </div>
+        <div>
+          <label>Max area (px)</label>
+          <input type="number" name="max_area" value="5000" min="10" />
+        </div>
+        <div>
+          <label>Adaptive block size</label>
+          <input type="number" name="block_size" value="11" min="3" step="2" />
+        </div>
+        <div>
+          <label>Adaptive C</label>
+          <input type="number" name="C" value="2" />
+        </div>
+        <div>
+          <label>Blur ksize</label>
+          <input type="number" name="blur_ksize" value="5" min="1" step="2" />
+        </div>
+        <div>
+          <label>FOV area (mm²)</label>
+          <input type="number" name="fov_area_mm2" value="2.0" step="0.1" />
+          <div class="muted">~2 mm² at 100× (~1.6 mm Ø)</div>
+        </div>
+      </div>
 
-            const form = event.target;
-            const formData = new FormData(form);
-            const resultDiv = document.getElementById('result');
+      <p class="muted">Tip: tune Min/Max area to your imaging scale; increase Max area if nodules are larger.</p>
 
-            resultDiv.innerHTML = 'Counting nodules...';
+      <button type="submit">Process</button>
+    </form>
 
-            try {
-                const response = await fetch('/upload', {
-                    method: 'POST',
-                    body: formData,
-                });
+    <div id="output" class="result" style="display:none;"></div>
+    <img id="preview" style="display:none;" alt="Overlay preview" />
+  </div>
 
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
+  <script>
+    const form = document.getElementById('form');
+    const output = document.getElementById('output');
+    const preview = document.getElementById('preview');
 
-                const data = await response.json();
-                resultDiv.innerHTML = `<strong>Nodule count: ${data.nodule_count}</strong>`;
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      output.style.display = 'none';
+      preview.style.display = 'none';
+      const data = new FormData(form);
 
-            } catch (error) {
-                console.error('Error:', error);
-                resultDiv.innerHTML = `<span style="color: red;">Error: ${error.message}</span>`;
-            }
-        };
-    </script>
+      const res = await fetch('/upload', { method: 'POST', body: data });
+      const json = await res.json();
+
+      if (!res.ok) {
+        output.style.display = 'block';
+        output.innerHTML = `<strong>Error:</strong> ${json.error || 'Unknown error'}`;
+        return;
+      }
+
+      const { nodule_count, nodules_per_mm2, overlay_url } = json;
+      let html = `<strong>Nodule count:</strong> ${nodule_count}`;
+      if (nodules_per_mm2 !== null && nodules_per_mm2 !== undefined) {
+        html += `<br/><strong>Nodules/mm²:</strong> ${nodules_per_mm2}`;
+      }
+      output.innerHTML = html;
+      output.style.display = 'block';
+
+      if (overlay_url) {
+        preview.src = overlay_url;
+        preview.style.display = 'block';
+      }
+    });
+  </script>
 </body>
 </html>
-
